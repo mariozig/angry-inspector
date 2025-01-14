@@ -38,7 +38,16 @@ class DocumentSplitter:
         """
         try:
             chunks = self.text_splitter.split_documents(documents)
-            print(f"Split {len(documents)} documents into {len(chunks)} chunks")
+            print(f"\nSplit {len(documents)} documents into {len(chunks)} chunks")
+            
+            # Print first few chunks' content and metadata
+            print("\nFirst 3 chunks preview:")
+            for i, chunk in enumerate(chunks[:3], 1):
+                print(f"\nChunk {i}:")
+                print("Content:", chunk.page_content)
+                print("Metadata:", chunk.metadata)
+                print("-" * 80)
+                
             return chunks
         except Exception as e:
             print(f"Error splitting documents: {str(e)}")
