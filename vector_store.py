@@ -33,8 +33,7 @@ class VectorStore:
         persist_directory: str = "chroma_db",
         collection_name: Optional[str] = None,
         openai_api_key: Optional[str] = None,
-        batch_size: int = 100,
-        clear_db: bool = False
+        batch_size: int = 100
     ):
         """
         Initialize the vector store with Chroma DB using OpenAI embeddings
@@ -49,9 +48,6 @@ class VectorStore:
         self.persist_directory = persist_directory
         self.collection_name = collection_name or "document_collection"
         self.batch_size = batch_size
-        
-        if clear_db:
-            self._clear_existing_db()
         
         try:
             self.embedding_function = OpenAIEmbeddings(
@@ -80,16 +76,17 @@ class VectorStore:
         except Exception as e:
             raise Exception(f"Error initializing Chroma DB: {str(e)}")
     
-    def _clear_existing_db(self):
-        """Empty the Chroma database directory if it exists"""
-        if os.path.exists(self.persist_directory) and os.path.isdir(self.persist_directory):
-            for item in os.listdir(self.persist_directory):
-                item_path = os.path.join(self.persist_directory, item)
-                if os.path.isfile(item_path):
-                    os.unlink(item_path)
-                elif os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
-            logger.info(f"Emptied directory contents at {self.persist_directory}")
+    ## TODO: For now you must manually clear the database by deleting everything in the dir
+    # def clear_existing_db(self):
+    #     """Empty the Chroma database directory if it exists"""
+    #     if os.path.exists(self.persist_directory) and os.path.isdir(self.persist_directory):
+    #         for item in os.listdir(self.persist_directory):
+    #             item_path = os.path.join(self.persist_directory, item)
+    #             if os.path.isfile(item_path):
+    #                 os.unlink(item_path)
+    #             elif os.path.isdir(item_path):
+    #                 shutil.rmtree(item_path)
+    #         logger.info(f"Emptied directory contents at {self.persist_directory}")
     
     @retry(
         stop=stop_after_attempt(3),
