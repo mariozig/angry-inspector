@@ -102,6 +102,11 @@ class AngryInspector:
                 k=num_results,
                 filter=filter
             )
+            
+            if not results:
+                print("\nNo relevant building codes found for your query. Try rephrasing or being more specific.")
+                return []
+                
             return results
         except Exception as e:
             print(f"Error performing search: {str(e)}")

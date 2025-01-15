@@ -156,26 +156,39 @@ class VectorStore:
         self,
         query: str,
         k: int = 5,
-        filter: Optional[dict] = None
+        filter: Optional[dict] = None,
+        score_threshold: float = 0.3
     ) -> List[Document]:
         """
-        Search for similar documents with retry logic
+        Search for similar documents with relevancy scores and filtering
         
         Args:
             query (str): Query text
             k (int): Number of documents to return
             filter (Optional[dict]): Metadata filter
+            score_threshold (float): Minimum relevancy score threshold (0-1)
             
         Returns:
-            List[Document]: List of similar documents
+            List[Document]: List of similar documents that meet the relevancy threshold
         """
         try:
-            results = self.store.similarity_search(
+            results = self.store.similarity_search_with_relevance_scores(
                 query,
                 k=k,
                 filter=filter
             )
-            return results
+
+            # Filter out results below the threshold
+            filtered_results = []
+            for doc, score in results:
+                if score >= score_threshold:
+                    filtered_results.append(doc)
+                    
+            if not filtered_results:
+                logger.info(f"No results found with relevancy score >= {score_threshold}")
+                
+            return filtered_results
+            
         except Exception as e:
             logger.error(f"Error performing similarity search: {str(e)}")
             return []
