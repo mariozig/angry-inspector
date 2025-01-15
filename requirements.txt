@@ -180,7 +180,9 @@ oauthlib==3.2.2
 onnxruntime==1.20.1
     # via chromadb
 openai==1.59.7
-    # via langchain-openai
+    # via
+    #   -r requirements.in
+    #   langchain-openai
 opentelemetry-api==1.29.0
     # via
     #   chromadb
@@ -334,6 +336,7 @@ sympy==1.13.3
     # via onnxruntime
 tenacity==9.0.0
     # via
+    #   -r requirements.in
     #   chromadb
     #   langchain
     #   langchain-community

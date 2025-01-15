@@ -1,18 +1,21 @@
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
-from typing import List, Optional, Dict, Any, Sequence
-import os
-from dotenv import load_dotenv
-from openai import RateLimitError, APIError, AuthenticationError
+# Standard library imports
 import logging
+import os
+import shutil
 import time
+from typing import Any, Dict, List, Optional
+
+# Third-party imports
+from dotenv import load_dotenv
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
+from openai import APIError, AuthenticationError, RateLimitError
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type
 )
 
 # Set up logging
@@ -21,10 +24,6 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
-
-class OpenAIError(Exception):
-    """Custom exception for OpenAI-related errors"""
-    pass
 
 class VectorStore:
     def __init__(
@@ -47,25 +46,40 @@ class VectorStore:
         self.collection_name = collection_name or "document_collection"
         self.batch_size = batch_size
         
+        self._clear_existing_db()
+        
         try:
-            # Initialize the embedding function with retry logic
             self.embedding_function = OpenAIEmbeddings(
                 openai_api_key=openai_api_key,
                 model="text-embedding-3-small",
                 max_retries=5,
                 request_timeout=30
             )
-            
-            # Test the embeddings with a simple query
-            self._test_embeddings()
-            
         except AuthenticationError:
-            raise OpenAIError("Invalid OpenAI API key. Please check your credentials.")
+            raise Exception("Invalid OpenAI API key. Please check your credentials.")
         except Exception as e:
-            raise OpenAIError(f"Error initializing OpenAI embeddings: {str(e)}")
+            raise Exception(f"Error initializing OpenAI embeddings: {str(e)}")
         
-        # Initialize Chroma store
-        self._initialize_store()
+        try:
+            self.store = Chroma(
+                persist_directory=self.persist_directory,
+                embedding_function=self.embedding_function,
+                collection_name=self.collection_name
+            )
+            logger.info(f"Successfully initialized Chroma DB at {self.persist_directory}")
+        except Exception as e:
+            raise Exception(f"Error initializing Chroma DB: {str(e)}")
+    
+    def _clear_existing_db(self):
+        """Empty the Chroma database directory if it exists"""
+        if os.path.exists(self.persist_directory) and os.path.isdir(self.persist_directory):
+            for item in os.listdir(self.persist_directory):
+                item_path = os.path.join(self.persist_directory, item)
+                if os.path.isfile(item_path):
+                    os.unlink(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+            logger.info(f"Emptied directory contents at {self.persist_directory}")
     
     @retry(
         stop=stop_after_attempt(3),
@@ -76,18 +90,6 @@ class VectorStore:
         """Test the embedding function with retry logic"""
         self.embedding_function.embed_query("test")
         logger.info("Successfully tested OpenAI embeddings")
-    
-    def _initialize_store(self):
-        """Initialize or load the Chroma database"""
-        try:
-            self.store = Chroma(
-                persist_directory=self.persist_directory,
-                embedding_function=self.embedding_function,
-                collection_name=self.collection_name
-            )
-            logger.info(f"Successfully initialized Chroma DB at {self.persist_directory}")
-        except Exception as e:
-            raise Exception(f"Error initializing Chroma DB: {str(e)}")
     
     def _batch_documents(self, documents: List[Document]) -> List[List[Document]]:
         """Split documents into batches"""
@@ -181,7 +183,7 @@ class VectorStore:
                 "total_documents": count,
                 "collection_name": self.collection_name,
                 "persist_directory": self.persist_directory,
-                "embedding_model": "text-embedding-ada-002"
+                "embedding_model": "text-embedding-3-small"
             }
         except Exception as e:
             logger.error(f"Error getting collection stats: {str(e)}")
@@ -191,14 +193,12 @@ if __name__ == "__main__":
     # Example usage
     from document_loader import DocumentLoader
     from text_splitter import DocumentSplitter
-    import os
     
     try:
-        # Initialize vector store with batch processing
+        # Initialize vector store
         vector_store = VectorStore(
             persist_directory="chroma_db",
-            collection_name="burlingame_codes",
-            batch_size=50  # Process 50 documents at a time
+            collection_name="burlingame_codes"
         )
         
         # Load and split documents
@@ -217,22 +217,16 @@ if __name__ == "__main__":
                 print(f"{key}: {value}")
             
             # Try a sample search
-            print("\nSample Search Results:")
-            query = "What are the penalties for code violations?"
+            query = "What are the requirements for residential building permits?"
             results = vector_store.similarity_search(query, k=2)
             
             if results:
+                print(f"\nSearch Results for: {query}")
                 for i, doc in enumerate(results, 1):
                     print(f"\nResult {i}:")
-                    print("Content:", doc.page_content)
-                    print("Source:", doc.metadata.get('source'))
-                    print("Page:", doc.metadata.get('page'))
-            else:
-                print("No results found or error occurred during search")
-        else:
-            print("Failed to add documents to the vector store")
-            
-    except OpenAIError as e:
-        print(f"OpenAI Error: {str(e)}")
+                    print("Content:", doc.page_content[:300], "..." if len(doc.page_content) > 300 else "")
+                    print("Source:", doc.metadata.get("source", "N/A"))
+                    print("Page:", doc.metadata.get("page", "N/A"))
+        
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
