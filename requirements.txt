@@ -1,5 +1,10 @@
 langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-core>=0.1.0
+langchain-openai>=0.0.3
+langchain-chroma>=0.0.5
+chromadb>=0.4.21
 python-dotenv>=1.0.0
-langchain-community>=0.1.0
 tqdm>=4.65.0
 pypdf>=3.17.0
+
