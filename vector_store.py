@@ -6,6 +6,8 @@ import time
 from typing import Any, Dict, List, Optional
 
 # Third-party imports
+import chromadb
+from chromadb.config import Settings
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -31,7 +33,8 @@ class VectorStore:
         persist_directory: str = "chroma_db",
         collection_name: Optional[str] = None,
         openai_api_key: Optional[str] = None,
-        batch_size: int = 100
+        batch_size: int = 100,
+        clear_db: bool = False
     ):
         """
         Initialize the vector store with Chroma DB using OpenAI embeddings
@@ -41,12 +44,14 @@ class VectorStore:
             collection_name (Optional[str]): Name of the collection in Chroma DB
             openai_api_key (Optional[str]): OpenAI API key. If not provided, will look for OPENAI_API_KEY env variable
             batch_size (int): Number of documents to process in each batch for embeddings
+            clear_db (bool): Whether to clear the existing database on initialization
         """
         self.persist_directory = persist_directory
         self.collection_name = collection_name or "document_collection"
         self.batch_size = batch_size
         
-        self._clear_existing_db()
+        if clear_db:
+            self._clear_existing_db()
         
         try:
             self.embedding_function = OpenAIEmbeddings(
@@ -61,10 +66,15 @@ class VectorStore:
             raise Exception(f"Error initializing OpenAI embeddings: {str(e)}")
         
         try:
+            client_settings = Settings(
+                anonymized_telemetry=False,
+                persist_directory=self.persist_directory
+            )
+            
             self.store = Chroma(
-                persist_directory=self.persist_directory,
                 embedding_function=self.embedding_function,
-                collection_name=self.collection_name
+                collection_name=self.collection_name,
+                client_settings=client_settings
             )
             logger.info(f"Successfully initialized Chroma DB at {self.persist_directory}")
         except Exception as e:
@@ -198,7 +208,8 @@ if __name__ == "__main__":
         # Initialize vector store
         vector_store = VectorStore(
             persist_directory="chroma_db",
-            collection_name="burlingame_codes"
+            collection_name="burlingame_codes",
+            clear_db=True
         )
         
         # Load and split documents
