@@ -1,7 +1,8 @@
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
-from typing import List, Optional, Dict, Any
+from langchain_core.embeddings import Embeddings
+from typing import List, Optional, Dict, Any, Sequence
 import os
 from dotenv import load_dotenv
 import openai
@@ -83,7 +84,6 @@ class VectorStore:
     def _initialize_store(self):
         """Initialize or load the Chroma database"""
         try:
-            from langchain_community.vectorstores import Chroma
             self.store = Chroma(
                 persist_directory=self.persist_directory,
                 embedding_function=self.embedding_function,
