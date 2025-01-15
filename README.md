@@ -4,25 +4,20 @@ A specialized RAG (Retrieval Augmented Generation) system designed for querying 
 
 ## Key Features
 
-- Efficient loading of building codes and municipal documents
+- Efficient loading and processing of municipal code documents (PDF format)
 - Smart text chunking optimized for legal/regulatory content
-- Vector storage and semantic search tailored for building codes
-- Quick retrieval of relevant regulations using natural language queries
-- Detailed context tracking to maintain regulatory accuracy
-- Built on ChromaDB and OpenAI embeddings for reliable results
+- Persistent vector storage using ChromaDB
+- Natural language querying with context-aware responses
+- Built on ChromaDB for vector storage and OpenAI for embeddings and LLM capabilities
 
 ## Data Directory Structure
 
-The `data` directory is where you should place your municipal code documents. Currently, the system is configured to work with PDF files. Each jurisdiction should have its own subdirectory:
+The `data` directory is where you should place your municipal code documents. The system is configured to work with PDF files. Each jurisdiction should have its own subdirectory:
 
 ```
 data/
-├── ca-burlingame/        # Example jurisdiction
-│   ├── building-code.pdf
-│   └── zoning-code.pdf
-├── ca-san-mateo/
-│   └── municipal-code.pdf
-└── ...
+└── ca-burlingame/
+    └── code-of-ordinances.pdf
 ```
 
 ## Setup
@@ -44,9 +39,9 @@ mkdir -p data/your-jurisdiction
 # Add your PDF documents to this directory
 ```
 
-4. Set up your OpenAI API key:
-```bash
-export OPENAI_API_KEY='your-api-key-here'
+4. Set up your environment variables in a `.env` file:
+```
+OPENAI_API_KEY=your-api-key-here
 ```
 
 ## Usage
@@ -58,26 +53,27 @@ The main interface to the system is through the `AngryInspector` class. There ar
 Before you can search, you need to create the vector database. This only needs to be done once, or when you add new documents:
 
 ```bash
-./venv/bin/python angry_inspector.py --create-db
+python angry_inspector.py --create-db
 ```
 
-### 2. Searching Building Codes
+Note: To reset the database, you'll need to manually delete the contents of the `chroma_db` directory.
+
+### 2. Querying the Building Codes
 
 Once the database is created, you can search using natural language queries:
 
 ```bash
-./venv/bin/python angry_inspector.py --query "What are the height restrictions for residential buildings?"
+python angry_inspector.py --query "What are the requirements for obtaining a building permit?"
 ```
 
-The system will return the most relevant sections from your building codes, including:
-- The content of the regulation
-- Source document and page number
-- Location within the document
+The system will return relevant information from the building codes in a structured format, including:
+- Key requirements and regulations
+- Related sections and provisions
+- Important conditions and exceptions
 
-## Example Use Cases
+## Example Queries
 
-- Find specific building requirements for your jurisdiction
-- Query parking regulations and zoning requirements
-- Search for permit requirements and building restrictions
-- Analyze code compliance across different sections
-- Cross-reference related regulations
+- "What are the requirements for obtaining a building permit?"
+- "What are the rules regarding noise and construction hours?"
+- "What are the height restrictions for residential buildings?"
+- "What are the parking requirements for commercial buildings?"
