@@ -5,7 +5,7 @@ from langchain_core.embeddings import Embeddings
 from typing import List, Optional, Dict, Any, Sequence
 import os
 from dotenv import load_dotenv
-import openai
+from openai import RateLimitError, APIError, AuthenticationError
 import logging
 import time
 from tenacity import (
@@ -51,7 +51,7 @@ class VectorStore:
             # Initialize the embedding function with retry logic
             self.embedding_function = OpenAIEmbeddings(
                 openai_api_key=openai_api_key,
-                model="text-embedding-ada-002",
+                model="text-embedding-3-small",
                 max_retries=5,
                 request_timeout=30
             )
@@ -59,12 +59,8 @@ class VectorStore:
             # Test the embeddings with a simple query
             self._test_embeddings()
             
-        except openai.RateLimitError:
-            raise OpenAIError("OpenAI API rate limit exceeded. Please try again later.")
-        except openai.AuthenticationError:
+        except AuthenticationError:
             raise OpenAIError("Invalid OpenAI API key. Please check your credentials.")
-        except openai.InsufficientQuotaError:
-            raise OpenAIError("OpenAI API quota exceeded. Please check your billing settings.")
         except Exception as e:
             raise OpenAIError(f"Error initializing OpenAI embeddings: {str(e)}")
         
@@ -72,9 +68,9 @@ class VectorStore:
         self._initialize_store()
     
     @retry(
-        retry=retry_if_exception_type(openai.RateLimitError),
-        wait=wait_exponential(multiplier=1, min=4, max=60),
-        stop=stop_after_attempt(5)
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((RateLimitError, APIError))
     )
     def _test_embeddings(self):
         """Test the embedding function with retry logic"""
@@ -120,33 +116,29 @@ class VectorStore:
                 if i < total_batches:
                     time.sleep(1)
             
-            self.store.persist()
             logger.info(f"Successfully added {len(documents)} documents to Chroma DB")
             return True
             
-        except openai.RateLimitError:
+        except RateLimitError:
             logger.error("OpenAI API rate limit exceeded")
-            return False
-        except openai.InsufficientQuotaError:
-            logger.error("OpenAI API quota exceeded")
             return False
         except Exception as e:
             logger.error(f"Error adding documents to Chroma DB: {str(e)}")
             return False
     
     @retry(
-        retry=retry_if_exception_type(openai.RateLimitError),
-        wait=wait_exponential(multiplier=1, min=4, max=60),
-        stop=stop_after_attempt(5)
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((RateLimitError, APIError))
     )
     def _add_batch_with_retry(self, batch: List[Document]):
         """Add a batch of documents with retry logic"""
         self.store.add_documents(batch)
     
     @retry(
-        retry=retry_if_exception_type(openai.RateLimitError),
-        wait=wait_exponential(multiplier=1, min=4, max=60),
-        stop=stop_after_attempt(5)
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((RateLimitError, APIError))
     )
     def similarity_search(
         self,
@@ -172,12 +164,6 @@ class VectorStore:
                 filter=filter
             )
             return results
-        except openai.RateLimitError:
-            logger.error("OpenAI API rate limit exceeded")
-            return []
-        except openai.InsufficientQuotaError:
-            logger.error("OpenAI API quota exceeded")
-            return []
         except Exception as e:
             logger.error(f"Error performing similarity search: {str(e)}")
             return []
