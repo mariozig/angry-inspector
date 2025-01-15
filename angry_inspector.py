@@ -1,144 +1,138 @@
-from typing import List, Optional
+# Standard library imports
+import argparse
+import logging
+from typing import Optional
 
+# Local imports
 from document_loader import DocumentLoader
+from prompt_generator import PromptGenerator
+from query_executor import QueryExecutor
 from text_splitter import DocumentSplitter
 from vector_store import VectorStore
-from langchain_core.documents import Document
 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class AngryInspector:
-    def __init__(
-        self,
-        data_directory: str = "data",
-        persist_directory: str = "chroma_db",
-        collection_name: str = "building_codes"
-    ):
-        """
-        Initialize AngryInspector with configuration for document processing and vector storage
+    """
+    Main interface for the building code RAG system
+    """
+    
+    def __init__(self):
+        """Initialize the inspector with vector store"""
+        logger.debug("Initializing AngryInspector")
+        self.data_dir = "data"  # Default data directory
+        self.vector_store = VectorStore()
+        self.prompt_generator = PromptGenerator()
         
-        Args:
-            data_directory (str): Directory containing building code documents
-            persist_directory (str): Directory to persist the vector database
-            collection_name (str): Name of the collection in the vector database
-        """
-        self.data_directory = data_directory
-        self.persist_directory = persist_directory
-        self.collection_name = collection_name
-        self.vector_store = None
-
-    def create_vector_database(self) -> bool:
-        """
-        Create the vector database from documents in the data directory
-        
-        Returns:
-            bool: True if database was created successfully
-        """
+    def create_vector_database(self):
+        """Create the vector database from documents"""
         try:
-            # Initialize components
-            loader = DocumentLoader(self.data_directory)
-            splitter = DocumentSplitter()
-            self.vector_store = VectorStore(
-                persist_directory=self.persist_directory,
-                collection_name=self.collection_name,
-                clear_db=True
-            )
-
-            # Load and process documents
+            logger.info("Starting vector database creation process...")
+            
+            # Load documents from data directory
+            loader = DocumentLoader(self.data_dir)
             documents = loader.load_documents()
+            
             if not documents:
-                print("No documents found in the data directory")
-                return False
-
+                logger.warning("No documents found in data directory. Please add files before creating the database.")
+                return
+                
+            logger.info(f"Successfully loaded {len(documents)} documents from data directory")
+            
             # Split documents into chunks
+            splitter = DocumentSplitter()
             chunks = splitter.split_documents(documents)
-            if not chunks:
-                print("Failed to split documents into chunks")
-                return False
-
-            # Add to vector store
+            logger.info(f"Split documents into {len(chunks)} chunks for processing")
+            
+            # # Clear existing database and add new chunks
+            # logger.info("Clearing existing vector database before adding new documents...")
+            # self.vector_store.clear_existing_db()
+            
+            logger.info("Adding documents to vector store...")
             success = self.vector_store.add_documents(chunks)
+            
             if success:
-                stats = self.vector_store.get_collection_stats()
-                print("\nVector Database Statistics:")
-                for key, value in stats.items():
-                    print(f"{key}: {value}")
-                return True
-            return False
-
+                logger.info("Successfully created vector database with all documents")
+            else:
+                logger.error("Failed to add some documents to the vector store. The database may be incomplete.")
+                
         except Exception as e:
-            print(f"Error creating vector database: {str(e)}")
-            return False
-
-    def search(
-        self,
-        query: str,
-        num_results: int = 5,
-        filter: Optional[dict] = None
-    ) -> List[Document]:
+            logger.exception("Failed to create vector database")
+            
+    def query_openai(self, query: str) -> Optional[str]:
         """
-        Search the vector database for relevant building code sections
+        Full RAG pipeline: search -> generate prompt -> query OpenAI
         
         Args:
-            query (str): The search query
-            num_results (int): Number of results to return
-            filter (Optional[dict]): Optional metadata filter
+            query (str): User's question about building codes
             
         Returns:
-            List[Document]: List of relevant document chunks
+            Optional[str]: OpenAI's response or None if there's an error
         """
-        if not self.vector_store:
-            try:
-                self.vector_store = VectorStore(
-                    persist_directory=self.persist_directory,
-                    collection_name=self.collection_name
-                )
-            except Exception as e:
-                print(f"Error connecting to vector database: {str(e)}")
-                return []
-
         try:
-            results = self.vector_store.similarity_search(
-                query=query,
-                k=num_results,
-                filter=filter
-            )
+            logger.info(f'Processing query: "{query}"')
+            
+            # Search vector database
+            logger.debug("Performing similarity search in vector database")
+            results = self.vector_store.similarity_search(query)
             
             if not results:
-                print("\nNo relevant building codes found for your query. Try rephrasing or being more specific.")
-                return []
+                msg = "No relevant information found. Please try rephrasing your question or being more specific."
+                logger.warning(f"No results found for query: {query}")
+                return msg
+            
+            # Generate prompt from search results
+            logger.debug("Generating prompt from search results")
+            prompt = self.prompt_generator.run(query, results)
+            
+            # Query OpenAI
+            logger.debug("Sending prompt to OpenAI")
+            executor = QueryExecutor(prompt)
+            response = executor.query_openai()
+            
+            if not response:
+                msg = "An error occurred while analyzing the building codes. Please try again."
+                logger.error("Received empty response from OpenAI")
+                return msg
                 
-            return results
+            logger.info("Successfully generated response from OpenAI")
+            return response
+            
         except Exception as e:
-            print(f"Error performing search: {str(e)}")
-            return []
+            logger.exception("Failed to process query through RAG pipeline")
+            return None
 
 
 if __name__ == "__main__":
-    import argparse
-    
+    def non_empty_string(value):
+        if not value or not value.strip():
+            raise argparse.ArgumentTypeError("Query cannot be empty")
+        return value.strip()
+
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Query building codes using RAG')
-    parser.add_argument('--create-db', action='store_true', help='Create/recreate the vector database')
-    parser.add_argument('--query', type=str, help='Search query')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--create-db', action='store_true', help='Create/recreate the vector database')
+    group.add_argument('--query', type=non_empty_string, help='Search query (cannot be empty)')
     
     args = parser.parse_args()
     
     # Initialize inspector
     inspector = AngryInspector()
     
-    # Handle different operations
+    # Either create database or perform search
     if args.create_db:
-        print("\nCreating vector database...")
+        logger.info("Starting database creation process...")
         inspector.create_vector_database()
-    if args.query:
-        print(f"\nSearch Results for: {args.query}")
-        results = inspector.search(args.query)
-        
-        for i, doc in enumerate(results, 1):
-            print(f"\nResult {i}:")
-            print("Content:", doc.page_content[:300], "..." if len(doc.page_content) > 300 else "")
-            print("Metadata:", doc.metadata)
-    if not args.create_db and not args.query:
-        print("\nError: Please specify either --create-db to create the database or --query to search")
-        parser.print_help()
-        exit(1)
+    else:
+        logger.info(f'Analyzing building codes for query: "{args.query}"')
+        response = inspector.query_openai(args.query)
+        if response:
+            logger.info("Response:\n%s", response)
+        else:
+            logger.error("Failed to get a response. Please try again.")
