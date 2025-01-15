@@ -145,7 +145,7 @@ class VectorStore:
     def similarity_search(
         self,
         query: str,
-        k: int = 4,
+        k: int = 5,
         filter: Optional[dict] = None
     ) -> List[Document]:
         """
