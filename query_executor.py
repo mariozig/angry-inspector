@@ -2,6 +2,7 @@ import os
 from typing import Optional
 from openai import OpenAI
 import logging
+from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
