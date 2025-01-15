@@ -1,4 +1,4 @@
-# Code-RAG
+# Angry Inspector
 
 A specialized RAG (Retrieval Augmented Generation) system designed for querying and analyzing building codes and municipal regulations. This library makes it easy to load municipal code documents, process them efficiently, and perform semantic search to quickly find relevant building regulations and requirements.
 
@@ -10,14 +10,6 @@ A specialized RAG (Retrieval Augmented Generation) system designed for querying 
 - Quick retrieval of relevant regulations using natural language queries
 - Detailed context tracking to maintain regulatory accuracy
 - Built on ChromaDB and OpenAI embeddings for reliable results
-
-## Example Use Cases
-
-- Find specific building requirements for your jurisdiction
-- Query parking regulations and zoning requirements
-- Search for permit requirements and building restrictions
-- Analyze code compliance across different sections
-- Cross-reference related regulations
 
 ## Data Directory Structure
 
@@ -33,8 +25,6 @@ data/
 └── ...
 ```
 
-While the system primarily supports PDF files, it can also handle text files. Support for other file formats (Word, HTML, etc.) would require adjustments to the `document_loader.py`.
-
 ## Setup
 
 1. Create and activate a virtual environment (recommended):
@@ -48,107 +38,46 @@ source venv/bin/activate  # On Unix/macOS
 pip install -r requirements.txt
 ```
 
-3. Create your data directory structure:
+3. Create your data directory structure and add your PDF documents:
 ```bash
 mkdir -p data/your-jurisdiction
+# Add your PDF documents to this directory
 ```
 
-4. Add your PDF documents to the appropriate jurisdiction directory
-
-5. Set up your OpenAI API key:
+4. Set up your OpenAI API key:
 ```bash
 export OPENAI_API_KEY='your-api-key-here'
 ```
 
 ## Usage
 
-### Loading Documents
+The main interface to the system is through the `AngryInspector` class. There are two main operations:
 
-The document loader will process all PDF and text files in the specified directory:
+### 1. Creating the Vector Database
 
-```python
-from document_loader import DocumentLoader
+Before you can search, you need to create the vector database. This only needs to be done once, or when you add new documents:
 
-# Load documents from a specific jurisdiction
-loader = DocumentLoader("data/your-jurisdiction")
-documents = loader.load_documents()
+```bash
+./venv/bin/python angry_inspector.py --create-db
 ```
 
-### Processing Documents
+### 2. Searching Building Codes
 
-```python
-from text_splitter import DocumentSplitter
-from vector_store import VectorStore
+Once the database is created, you can search using natural language queries:
 
-# Split documents into chunks
-splitter = DocumentSplitter()
-chunks = splitter.split_documents(documents)
-
-# Store in vector database for searching
-vector_store = VectorStore()
-vector_store.add_documents(chunks)
-
-# Search for specific regulations
-results = vector_store.query("What are the height restrictions for residential buildings?")
-for doc in results:
-    print(doc.page_content)
+```bash
+./venv/bin/python angry_inspector.py --query "What are the height restrictions for residential buildings?"
 ```
 
-## Features
+The system will return the most relevant sections from your building codes, including:
+- The content of the regulation
+- Source document and page number
+- Location within the document
 
-- Recursive document loading from directories
-- Automatic file type detection (PDF, text)
-- Configurable text chunking with overlap
-- Progress tracking and chunk statistics
-- Semantic search using OpenAI embeddings
-- Vector storage using ChromaDB for fast retrieval
+## Example Use Cases
 
-## Class Usage
-
-### VectorStore
-
-The `VectorStore` class provides vector storage and retrieval using Chroma DB and OpenAI embeddings:
-
-```python
-from vector_store import VectorStore
-
-# Initialize vector store
-vector_store = VectorStore(
-    persist_directory="chroma_db",
-    collection_name="my_collection",  # Optional
-    batch_size=100  # Optional
-)
-
-# Add documents
-vector_store.add_documents(documents)
-
-# Query similar documents
-results = vector_store.query(
-    query_text="your search query",
-    n_results=5  # Optional, defaults to 4
-)
-```
-
-### DocumentSplitter
-
-The `DocumentSplitter` class splits documents into smaller chunks for better processing:
-
-```python
-from text_splitter import DocumentSplitter
-
-# Initialize splitter with custom settings
-splitter = DocumentSplitter(
-    chunk_size=1000,  # Optional
-    chunk_overlap=500,  # Optional
-    add_start_index=True  # Optional
-)
-
-# Split documents
-chunks = splitter.split_documents(documents)
-
-# Get chunk statistics
-chunk_info = splitter.get_chunk_info(chunks)
-print(chunk_info)  # Shows total chunks, average/min/max chunk sizes
-```
-
-Note: Make sure to set your OpenAI API key in the environment variables or pass it directly to the VectorStore constructor.
+- Find specific building requirements for your jurisdiction
+- Query parking regulations and zoning requirements
+- Search for permit requirements and building restrictions
+- Analyze code compliance across different sections
+- Cross-reference related regulations
